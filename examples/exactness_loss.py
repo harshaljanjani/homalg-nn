@@ -169,10 +169,10 @@ if __name__ == '__main__':
     os.makedirs('examples/outputs', exist_ok=True)
     plot_optimization_history(
         history_1,
-        save_path='examples/outputs/02_exactness_optimization_example1.png'
+        save_path='examples/outputs/exactness_optimization_1.png'
     )
     plot_optimization_history(
         history_2,
-        save_path='examples/outputs/02_exactness_optimization_example2.png'
+        save_path='examples/outputs/exactness_optimization_2.png'
     )
     print("\nDemo complete! Plots and logs saved to examples/outputs/")
