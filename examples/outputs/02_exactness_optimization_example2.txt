@@ -1,0 +1,6 @@
+Betti evolution:
+Step 0: [0, 0, np.int64(2), 0, 0, 0] (Rank: 2)
+Step 100: [0, 0, np.int64(2), 0, 0, 0] (Rank: 2)
+Step 200: [0, 0, np.int64(2), 0, 0, 0] (Rank: 2)
+Step 300: [0, 0, np.int64(2), 0, 0, 0] (Rank: 2)
+Step 400: [0, 0, np.int64(2), 0, 0, 0] (Rank: 2)
