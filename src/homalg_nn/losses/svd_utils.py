@@ -46,38 +46,65 @@ def compute_kernel_projection(
 ) -> torch.Tensor:
     """
     Compute projection matrix onto ker(matrix) using SVD.
-    The kernel (null space) of A consists of vectors v such that Av = 0.
-    Using SVD: A = U Σ V^T, ker(A) = span of columns of V corresponding to σ_i < ε.
+    Uses the property: `P_ker = I - P_im(A^T)`. This approach
+    uses reduced SVD (`Im(A^T)`) to avoid the gradient instability
+    associated with the non-unique null space vectors returned by 
+    full SVD.
     Properties:
     >> P_ker @ P_ker = P_ker (idempotent)
     >> P_ker^T = P_ker (symmetric)
     >> P_ker @ v = v for v in ker(A)
     >> P_ker @ v = 0 for v in im(A^T)
     """
-    m, n = matrix.shape
-    U, S, Vh = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=True)
-    V = Vh.T  # (n, n)
-    min_dim = min(m, n)
+    _, n = matrix.shape
+    _, S, Vh = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=False)
+    V = Vh.T  # (n, min(m, n))
     # use smooth sigmoid approximation instead of hard threshold
-    # sigmoid((epsilon - S) / temperature) ≈ 1 when S << epsilon, ≈ 0 when S >> epsilon
+    # sigmoid((S - epsilon) / temperature) ≈ 1 when S >> epsilon
+    # ≈ 0 when S << epsilon
     S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
     temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
-    kernel_mask = torch.sigmoid((epsilon - S) / temperature)
-    # build a mask of length n (avoid in-place ops to preserve gradients)!!!
-    if n > m:
-        # if n > m, the last (n - m) columns are automatically in kernel
-        extra_dims_mask = torch.ones(n - min_dim, device=matrix.device, dtype=matrix.dtype)
-        mask = torch.cat([kernel_mask, extra_dims_mask])
-    else:
-        if len(kernel_mask) < n:
-            padding = torch.zeros(n - len(kernel_mask), device=matrix.device, dtype=matrix.dtype)
-            mask = torch.cat([kernel_mask, padding])
-        else:
-            mask = kernel_mask
+    row_space_mask = torch.sigmoid((S - epsilon) / temperature)
     # projection using mask: P = V @ diag(mask) @ V^T; preserves gradients through smooth sigmoid
-    P_ker = V @ torch.diag(mask) @ V.T
+    # `P_row` = `V @ diag(mask) @ V^T`
+    P_row = V @ torch.diag(row_space_mask) @ V.T
+    # `P_ker = I - P_row`
+    eye = torch.eye(n, device=matrix.device, dtype=matrix.dtype)
+    P_ker = eye - P_row
     return P_ker
 
+    # ===========================================
+    # abandoned (for now): direct null space proj
+    # >> the SVD of a rectangular matrix gives non-
+    # unique null space basis vectors (arbitrary 
+    # rotation); autograd cannot compute stable 
+    # gradients for arbitrary vectors -- switched
+    # to the rank-nullity method (above) which uses
+    # the stable row-space projection.
+    # ===========================================
+    # m, n = matrix.shape
+    # U, S, Vh = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=True)
+    # V = Vh.T  # (n, n)
+    # min_dim = min(m, n)
+    # # use smooth sigmoid approximation instead of hard threshold
+    # # sigmoid((epsilon - S) / temperature) ≈ 1 when S << epsilon, ≈ 0 when S >> epsilon
+    # S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
+    # temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
+    # kernel_mask = torch.sigmoid((epsilon - S) / temperature)
+    # # build a mask of length n (avoid in-place ops to preserve gradients)!!!
+    # if n > m:
+    #     # if n > m, the last (n - m) columns are automatically in kernel
+    #     extra_dims_mask = torch.ones(n - min_dim, device=matrix.device, dtype=matrix.dtype)
+    #     mask = torch.cat([kernel_mask, extra_dims_mask])
+    # else:
+    #     if len(kernel_mask) < n:
+    #         padding = torch.zeros(n - len(kernel_mask), device=matrix.device, dtype=matrix.dtype)
+    #         mask = torch.cat([kernel_mask, padding])
+    #     else:
+    #         mask = kernel_mask
+    # # projection using mask: P = V @ diag(mask) @ V^T; preserves gradients through smooth sigmoid
+    # P_ker = V @ torch.diag(mask) @ V.T
+    # return P_ker
 
 def compute_image_projection(
     matrix: torch.Tensor,
@@ -93,21 +120,38 @@ def compute_image_projection(
     >> `P_im @ v = v` for v in im(A)
     >> `P_im @ v = 0` for v in ker(A^T)
     """
-    m, _ = matrix.shape
-    U, S, _ = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=True)
+    _, _ = matrix.shape
+    U, S, _ = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=False)
     # use smooth sigmoid approximation instead of hard threshold
     # sigmoid((epsilon - S) / temperature) ≈ 1 when S << epsilon, ≈ 0 when S >> epsilon
     S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
     temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
     image_mask = torch.sigmoid((S - epsilon) / temperature)
-    if len(image_mask) < m:
-        padding = torch.zeros(m - len(image_mask), device=matrix.device, dtype=matrix.dtype)
-        mask = torch.cat([image_mask, padding])
-    else:
-        mask = image_mask
-    P_im = U @ torch.diag(mask) @ U.T
+    P_im = U @ torch.diag(image_mask) @ U.T
     return P_im
 
+    # ===========================================
+    # abandoned (for now): unnecessary full matrices
+    # >> consistent with the kernel projection change,
+    # we switched to `full_matrices = False` here as 
+    # well -- (caveat) image projection was less 
+    # unstable, but using reduced SVD is more efficient
+    # and mathematically sufficient for the range.
+    # ===========================================
+    # m, _ = matrix.shape
+    # U, S, _ = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=True)
+    # # use smooth sigmoid approximation instead of hard threshold
+    # # sigmoid((epsilon - S) / temperature) ≈ 1 when S << epsilon, ≈ 0 when S >> epsilon
+    # S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
+    # temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
+    # image_mask = torch.sigmoid((S - epsilon) / temperature)
+    # if len(image_mask) < m:
+    #     padding = torch.zeros(m - len(image_mask), device=matrix.device, dtype=matrix.dtype)
+    #     mask = torch.cat([image_mask, padding])
+    # else:
+    #     mask = image_mask
+    # P_im = U @ torch.diag(mask) @ U.T
+    # return P_im
 
 def compute_kernel_basis(
     matrix: torch.Tensor,

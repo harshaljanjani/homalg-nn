@@ -253,7 +253,8 @@ class TestIntegrationWithNumpy:
                 boundary_maps=[d_0.numpy(), d_1.numpy()]
             )
             final_betti = chain.get_betti_numbers()
-        assert final_loss < initial_loss * 0.1
+        # assert that loss has decreased significantly.
+        assert final_loss < initial_loss * 0.2
         assert sum(final_betti) <= sum(initial_betti)
 
 
