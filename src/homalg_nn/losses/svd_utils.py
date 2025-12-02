@@ -59,11 +59,7 @@ def compute_kernel_projection(
     _, n = matrix.shape
     _, S, Vh = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=False)
     V = Vh.T  # (n, min(m, n))
-    # use smooth sigmoid approximation instead of hard threshold
-    # sigmoid((S - epsilon) / temperature) ≈ 1 when S >> epsilon
-    # ≈ 0 when S << epsilon
-    S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
-    temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
+    temperature = epsilon * 0.5
     row_space_mask = torch.sigmoid((S - epsilon) / temperature)
     # projection using mask: P = V @ diag(mask) @ V^T; preserves gradients through smooth sigmoid
     # `P_row` = `V @ diag(mask) @ V^T`
@@ -122,10 +118,7 @@ def compute_image_projection(
     """
     _, _ = matrix.shape
     U, S, _ = safe_svd(matrix, epsilon=epsilon * 1e-4, full_matrices=False)
-    # use smooth sigmoid approximation instead of hard threshold
-    # sigmoid((epsilon - S) / temperature) ≈ 1 when S << epsilon, ≈ 0 when S >> epsilon
-    S_scale = torch.max(S) if len(S) > 0 else torch.tensor(1.0, device=matrix.device, dtype=matrix.dtype)
-    temperature = torch.clamp(S_scale * 0.1, min=epsilon * 0.1, max=1.0)
+    temperature = epsilon * 0.5
     image_mask = torch.sigmoid((S - epsilon) / temperature)
     P_im = U @ torch.diag(image_mask) @ U.T
     return P_im

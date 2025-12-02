@@ -5,7 +5,8 @@ from homalg_nn.losses.svd_utils import (
     compute_kernel_projection,
     compute_image_projection,
     compute_kernel_basis,
-    compute_image_basis
+    compute_image_basis,
+    safe_svd
 )
 
 
@@ -30,7 +31,8 @@ class ExactnessLoss(nn.Module):
         epsilon: float = 1e-6,
         mode: str = 'projection_norm',
         normalize: bool = True,
-        weight_by_dimension: bool = False
+        weight_by_dimension: bool = False,
+        sparsity_weight: float = 0.0
     ):
         """
         Initialize ExactnessLoss.
@@ -40,8 +42,9 @@ class ExactnessLoss(nn.Module):
         self.mode = mode
         self.normalize = normalize
         self.weight_by_dimension = weight_by_dimension
+        self.sparsity_weight = sparsity_weight
         if mode not in ['projection_norm', 'subspace_angle', 'overlap']:
-            raise ValueError(f"Unknown mode: {mode}. Choose from 'projection_norm', 'subspace_angle', 'overlap'")
+            raise ValueError(f"Unknown mode: {mode}")
 
     def forward(self, boundary_maps: List[torch.Tensor]) -> torch.Tensor:
         """
@@ -55,7 +58,8 @@ class ExactnessLoss(nn.Module):
         """
         if len(boundary_maps) < 2:
             return torch.tensor(0.0, device=boundary_maps[0].device, dtype=boundary_maps[0].dtype)
-        total_loss = torch.tensor(0.0, device=boundary_maps[0].device, dtype=boundary_maps[0].dtype)
+        total_defect = torch.tensor(0.0, device=boundary_maps[0].device, dtype=boundary_maps[0].dtype)
+        sparsity_loss = torch.tensor(0.0, device=boundary_maps[0].device, dtype=boundary_maps[0].dtype)
         num_interfaces = 0
 
         # for each consecutive pair (`d_i`, `d_{i + 1}`), check exactness at `C_{i+1}`
@@ -68,11 +72,17 @@ class ExactnessLoss(nn.Module):
             if self.weight_by_dimension:
                 dimension = d_i.shape[1]  # = `d_{i+1}.shape[0]`
                 defect = defect / dimension
-            total_loss = total_loss + defect
+            total_defect = total_defect + defect
             num_interfaces += 1
+        if self.sparsity_weight > 0:
+            for d_map in boundary_maps:
+                _, S, _ = safe_svd(d_map, full_matrices=False)
+                width = self.epsilon
+                bump = torch.exp(-((S - self.epsilon)**2) / (width**2))
+                sparsity_loss = sparsity_loss + torch.sum(bump)
         if self.normalize and num_interfaces > 0:
-            total_loss = total_loss / num_interfaces
-        return total_loss
+            total_defect = total_defect / num_interfaces
+        return total_defect + (self.sparsity_weight * sparsity_loss)
 
     def compute_defect_at_degree(
         self,

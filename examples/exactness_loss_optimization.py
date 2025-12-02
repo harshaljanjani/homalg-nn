@@ -5,10 +5,12 @@ import os
 from homalg_nn.losses import ExactnessLoss, ChainAxiomLoss
 from homalg_nn.core import ChainComplex
 
+EVAL_EPSILON = 1e-3
+
 
 def optimize_chain_complex(
     dimensions,
-    num_steps=1000,
+    num_steps=2000,
     lr=0.01,
     seed=42
 ):
@@ -23,13 +25,17 @@ def optimize_chain_complex(
         d_i = torch.randn(
             dimensions[i],
             dimensions[i+1],
-            requires_grad=True,
             dtype=torch.float64
-        )
+        ) * 0.5
+        d_i.requires_grad = True
         boundary_maps.append(d_i)
-    exactness_loss_fn = ExactnessLoss(epsilon=1e-6, normalize=True)
+    exactness_loss_fn = ExactnessLoss(
+        epsilon=EVAL_EPSILON, 
+        normalize=True,
+        sparsity_weight=0.1
+    )
     chain_axiom_loss_fn = ChainAxiomLoss(normalize=True)
-    optimizer = torch.optim.Adam(boundary_maps, lr=lr)
+    optimizer = torch.optim.AdamW(boundary_maps, lr=lr, weight_decay=1e-4)
     history = {
         'exactness_loss': [],
         'chain_axiom_loss': [],
@@ -38,13 +44,14 @@ def optimize_chain_complex(
     }
     print(f"Optimizing chain complex: {' <- '.join(map(str, dimensions))}")
     print(f"Number of boundary maps: {len(boundary_maps)}")
-    print(f"Total parameters: {sum(d.numel() for d in boundary_maps)}")
+    print(f"Evaluator Epsilon: {EVAL_EPSILON}")
     print()
     # initial Betti numbers
     with torch.no_grad():
         chain = ChainComplex(
             dimensions=dimensions,
-            boundary_maps=[d.numpy() for d in boundary_maps]
+            boundary_maps=[d.detach().numpy() for d in boundary_maps],
+            epsilon=EVAL_EPSILON 
         )
         initial_betti = chain.get_betti_numbers()
         print(f"Initial Betti numbers: {initial_betti}")
@@ -56,36 +63,38 @@ def optimize_chain_complex(
         optimizer.zero_grad()
         exactness_loss = exactness_loss_fn(boundary_maps)
         chain_axiom_loss = chain_axiom_loss_fn(boundary_maps)
-        total_loss = exactness_loss + 0.1 * chain_axiom_loss
+        total_loss = exactness_loss + 0.5 * chain_axiom_loss 
         total_loss.backward()
         optimizer.step()
         history['exactness_loss'].append(exactness_loss.item())
         history['chain_axiom_loss'].append(chain_axiom_loss.item())
         history['total_loss'].append(total_loss.item())
-        if step % 100 == 0:
+        if step % 200 == 0:
             with torch.no_grad():
                 chain = ChainComplex(
                     dimensions=dimensions,
-                    boundary_maps=[d.numpy() for d in boundary_maps]
+                    boundary_maps=[d.detach().numpy() for d in boundary_maps],
+                    epsilon=EVAL_EPSILON
                 )
                 betti = chain.get_betti_numbers()
-                history['betti_numbers'].append((step, betti, sum(betti)))
+                rank_sum = sum(betti)
+                history['betti_numbers'].append((step, betti, rank_sum))  
                 print(f"Step {step:4d}: "
                       f"Loss={total_loss.item():.4f}, "
-                      f"Exactness={exactness_loss.item():.4f}, "
-                      f"ChainAxiom={chain_axiom_loss.item():.6f}, "
-                      f"Betti={betti}, "
-                      f"Rank={sum(betti)}")
+                      f"Exact={exactness_loss.item():.4f}, "
+                      f"ChainAx={chain_axiom_loss.item():.6f}, "
+                      f"Betti={betti}")
     with torch.no_grad():
         chain = ChainComplex(
             dimensions=dimensions,
-            boundary_maps=[d.numpy() for d in boundary_maps]
+            boundary_maps=[d.detach().numpy() for d in boundary_maps],
+            epsilon=EVAL_EPSILON
         )
         final_betti = chain.get_betti_numbers()
         print()
         print(f"Final Betti numbers: {final_betti}")
         print(f"Final homology rank: {sum(final_betti)}")
-        print(f"Reduction in rank: {sum(initial_betti)} → {sum(final_betti)}")
+        print(f"Reduction in rank: {sum(initial_betti)} -> {sum(final_betti)}")
 
     return history, boundary_maps
 
@@ -152,17 +161,17 @@ if __name__ == '__main__':
     dimensions_1 = [5, 8, 10, 8, 5]
     history_1, maps_1 = optimize_chain_complex(
         dimensions=dimensions_1,
-        num_steps=500,
-        lr=0.01,
+        num_steps=2000,
+        lr=0.005,
         seed=42
     )
     # long chain complex
-    print("2: Longer Chain Complex")
+    print("\n2: Longer Chain Complex")
     dimensions_2 = [3, 6, 10, 12, 10, 6, 3]
     history_2, maps_2 = optimize_chain_complex(
         dimensions=dimensions_2,
-        num_steps=500,
-        lr=0.01,
+        num_steps=2000,
+        lr=0.005,
         seed=123
     )
     print("VISUALIZATION")
