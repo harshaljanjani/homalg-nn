@@ -147,6 +147,41 @@ class ChainModule(nn.Module):
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
+    def compute_loss_with_annealing(
+        self,
+        step: int,
+        total_steps: int,
+        schedule: str = 'exponential',
+        exactness_range: tuple = (0.1, 1.0),
+        chain_axiom_range: tuple = (2.0, 0.5)
+    ) -> torch.Tensor:
+        """
+        Compute loss with annealing schedule for stable convergence.
+        >>> chain = ChainModule([5, 8, 10])
+        >>> optimizer = torch.optim.AdamW(chain.parameters(), lr=0.01)
+        >>> total_steps = 2000
+        >>> for step in range(total_steps):
+        >>>     optimizer.zero_grad()
+        >>>     loss = chain.compute_loss_with_annealing(
+        >>>         step, total_steps, schedule='exponential'
+        >>>     )
+        >>>     loss.backward()
+        >>>     optimizer.step()
+        >>> # Achieves stable `betti = 0` with fewer oscillations
+        """
+        from homalg_nn.nn.annealing import AnnealingScheduler
+        scheduler = AnnealingScheduler(
+            schedule=schedule,
+            total_steps=total_steps,
+            exactness_range=exactness_range,
+            chain_axiom_range=chain_axiom_range
+        )
+        exactness_weight, chain_axiom_weight = scheduler.get_weights(step)
+        loss_exact = self.exactness_loss_fn(list(self.boundary_maps))
+        loss_axiom = self.chain_axiom_loss_fn(list(self.boundary_maps))
+        total_loss = exactness_weight * loss_exact + chain_axiom_weight * loss_axiom
+        return total_loss
+
     def to_chain_complex(self) -> ChainComplex:
         """
         Convert to ChainComplex for analysis.
