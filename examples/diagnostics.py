@@ -197,7 +197,7 @@ def experiment_baseline(seed: int = 42, num_steps: int = 2000) -> Dict[str, Any]
     optimizer = torch.optim.AdamW(chain.parameters(), lr=0.01, weight_decay=1e-4)
     monitor = DiagnosticMonitor(verbose=False)
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
-    print(f"Training for {num_steps} steps...")
+    print(f"Training for {num_steps} steps.")
     for step in range(num_steps):
         optimizer.zero_grad()
         loss_exact = chain.compute_exactness_loss(mode='exactness')
@@ -254,7 +254,7 @@ def experiment_annealing_schedule(
     optimizer = torch.optim.AdamW(chain.parameters(), lr=0.01, weight_decay=1e-4)
     monitor = DiagnosticMonitor(verbose=False)
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
-    print(f"Training for {num_steps} steps with {schedule_type} annealing...")
+    print(f"Training for {num_steps} steps with {schedule_type} annealing.")
     for step in range(num_steps):
         optimizer.zero_grad()
         progress = step / num_steps
@@ -393,7 +393,7 @@ def experiment_higher_epsilon(seed: int = 42, epsilon: float = 1e-2) -> Dict[str
     optimizer = torch.optim.AdamW(chain.parameters(), lr=0.01, weight_decay=1e-4)
     monitor = DiagnosticMonitor(verbose=False)
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
-    print(f"Training for 2000 steps with epsilon={epsilon}...")
+    print(f"Training for 2000 steps with epsilon={epsilon}.")
     for step in range(2000):
         optimizer.zero_grad()
         loss_exact = chain.compute_exactness_loss(mode='exactness')

@@ -23,7 +23,7 @@ def train_without_annealing(seed: int = 42):
     monitor = HomologyMonitor(log_interval=200, verbose=True)
     num_steps = 2000
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
-    print(f"Training for {num_steps} steps...\n")
+    print(f"Training for {num_steps} steps.\n")
     for step in range(num_steps):
         optimizer.zero_grad()
         loss = chain.compute_exactness_loss(mode='combined')
@@ -66,7 +66,7 @@ def train_with_annealing(seed: int = 42, schedule: str = 'exponential'):
     )
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
     print(f"\n{scheduler.get_schedule_info()}")
-    print(f"\nTraining for {num_steps} steps...\n")
+    print(f"\nTraining for {num_steps} steps.\n")
     for step in range(num_steps):
         optimizer.zero_grad()
         loss = chain.compute_loss_with_annealing(
@@ -117,7 +117,7 @@ def train_with_recommended_settings(seed: int = 42):
     scheduler = create_recommended_scheduler(num_steps)
     print(f"\nInitial Betti: {chain.get_betti_numbers()}")
     print(f"\n{scheduler.get_schedule_info()}")
-    print(f"\nTraining for {num_steps} steps...\n")
+    print(f"\nTraining for {num_steps} steps.\n")
     for step in range(num_steps):
         optimizer.zero_grad()
         ex_w, ax_w = scheduler.get_weights(step)
