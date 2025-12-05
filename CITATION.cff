@@ -1,0 +1,53 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Homological Algebra for Neural Networks
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Harshal
+    family-names: Janjani
+    email: harshaljanjaniwork@gmail.com
+    orcid: 'https://orcid.org/0009-0001-0494-1110'
+repository-code: 'https://github.com/harshaljanjani/homalg-nn'
+abstract: >-
+  An experimental framework for constructing neural networks
+  that maintain coherent internal representations even when
+  their predictive performance appears sound. The core idea
+  is to model neural architectures as chain complexes drawn
+  from homological algebra, a field that characterizes how
+  information propagates through structured sequences
+  without redundancy or loss. By enforcing exactness, the
+  condition that the image of each layer map coincides with
+  the kernel of the next, the architecture constrains
+  representations to evolve without producing what prior
+  work terms fractured entangled representations: redundant
+  encodings of the same concept in disparate contexts
+  (fracturing) and unintended coupling of otherwise
+  independent behaviors (entanglement).
+
+
+  Although the underlying mathematical tools, including
+  chain complexes and exact sequences, are long-established
+  in algebraic topology and related disciplines, they have
+  not previously been employed as structural inductive
+  biases in deep learning. The contribution lies in
+  translating these principles into a neural design paradigm
+  that complements existing architectural biases such as
+  convolutional locality and attention-based permutation
+  invariance. The resulting framework directly targets the
+  quality and efficiency of information flow within deep
+  models, offering a principled mechanism for reducing
+  representational waste and improving internal consistency.
+keywords:
+  - homological algebra
+  - representation learning
+  - deep learning
+  - topological deep learning
+  - betti numbers
+license: Apache-2.0
+version: 0.1.0
+date-released: '2025-12-05'
